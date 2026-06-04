@@ -1,0 +1,115 @@
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, SlidersHorizontal } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import { cn } from '@/lib/utils';
+
+const categories = [
+  'vegetables', 'fruits', 'dairy', 'snacks', 'kirana',
+  'beverages', 'household', 'personal care',
+];
+
+export default function ProductFilters({ open, onClose, filters, onApplyFilters }) {
+  const [localFilters, setLocalFilters] = useState(filters);
+
+  const handleApply = () => {
+    onApplyFilters(localFilters);
+    onClose();
+  };
+
+  const handleReset = () => {
+    const reset = { category: '', sort: 'popular', priceRange: [0, 1000], rating: 0 };
+    setLocalFilters(reset);
+    onApplyFilters(reset);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, x: '100%' }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: '100%' }}
+          className="fixed right-0 top-0 bottom-0 w-full max-w-sm z-50 bg-background border-l shadow-2xl"
+        >
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5" />
+              <h3 className="font-semibold text-lg">Filters</h3>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-6 overflow-y-auto h-[calc(100vh-140px)]">
+            <div>
+              <h4 className="font-medium mb-3">Category</h4>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setLocalFilters({ ...localFilters, category: localFilters.category === cat ? '' : cat })}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full text-sm capitalize transition-all',
+                      localFilters.category === cat
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-3">Sort By</h4>
+              <select
+                value={localFilters.sort}
+                onChange={(e) => setLocalFilters({ ...localFilters, sort: e.target.value })}
+                className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="popular">Popular</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+                <option value="rating">Rating</option>
+                <option value="newest">Newest</option>
+              </select>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-3">Rating</h4>
+              <div className="flex gap-2">
+                {[4, 3, 2, 1].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setLocalFilters({ ...localFilters, rating: localFilters.rating === star ? 0 : star })}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-sm transition-all',
+                      localFilters.rating === star
+                        ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {star}+ ★
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background flex gap-3">
+            <Button variant="ghost" size="md" className="flex-1" onClick={handleReset}>
+              Reset
+            </Button>
+            <Button variant="primary" size="md" className="flex-1" onClick={handleApply}>
+              Apply Filters
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

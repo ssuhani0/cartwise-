@@ -81,6 +81,60 @@ export default function AiAssistant() {
   const formatResponse = (data) => {
     if (typeof data === 'string') return data;
     if (data?.message) return data.message;
+    if (data?.error) return `Oops! I encountered an error: ${data.error}`;
+    
+    // Handle Recipe object
+    if (data?.recipeName) {
+      if (!data.ingredients || data.ingredients.length === 0) {
+        return `I couldn't find specific ingredients for "${data.recipeName}". Please try another recipe.`;
+      }
+      const header = `🍲 **${data.recipeName}**\nEstimated Cost: ₹${data.estimatedCost || 'Unknown'}\n\n**Ingredients:**\n`;
+      const items = data.ingredients.map(ing => `• ${ing.name}: ${ing.quantity} ${ing.unit || ''}`).join('\n');
+      return header + items;
+    }
+
+    // Handle Budget object
+    if (data?.alternatives) {
+      if (data.alternatives.error) {
+        return `Error optimizing budget: ${data.alternatives.error}`;
+      }
+      if (Array.isArray(data.alternatives) && data.alternatives.length > 0) {
+        const header = `💰 **Budget Optimizer (₹${data.budget})**\nHere are some better value alternatives:\n\n`;
+        const items = data.alternatives.map(alt => `• **${alt.name}** (₹${alt.price})\n  Savings: ₹${alt.savings || 0}\n  Why: ${alt.reason || 'Better value'}`).join('\n\n');
+        return header + items;
+      }
+      return "Your current cart is already highly optimized for your budget!";
+    }
+
+    // Handle Monthly Prediction object
+    if (data?.prediction) {
+      if (data.prediction.error) {
+         return `Error predicting groceries: ${data.prediction.error}`;
+      }
+      const pred = data.prediction;
+      const header = `📅 **Monthly Grocery Prediction**\nBased on your purchase history.\nEstimated Monthly Budget: ₹${pred.estimatedBudget || pred.estimated_budget || 0}\n\n**Predicted Needs:**\n`;
+      const predictedItems = pred.predictedItems || pred.predicted_items || [];
+      if (predictedItems.length === 0) return "Not enough purchase history to make a prediction yet!";
+      const items = predictedItems.map(item => `• ${item.name} (${item.estimatedQuantity || item.estimated_quantity} ${item.unit || ''})`).join('\n');
+      return header + items;
+    }
+    
+    // Handle general recommendations object
+    if (data?.recommendations) {
+      if (data.recommendations.length === 0) {
+        return "I couldn't find any specific recommendations for that right now. Could you tell me more about what you're looking for?";
+      }
+      if (data.recommendations.error) {
+         return `Error getting recommendations: ${data.recommendations.error}`;
+      }
+      return data.recommendations.map((item) => {
+        const name = item.product_name || item.name || '';
+        const price = item.price ? ` - ₹${item.price}` : '';
+        const reason = item.reason ? `\n  ↳ ${item.reason}` : '';
+        return `• ${name}${price}${reason}`;
+      }).join('\n\n');
+    }
+
     if (Array.isArray(data)) {
       return data.map((item) => `• ${item.name || item}: ${item.price ? `₹${item.price}` : ''}`).join('\n');
     }

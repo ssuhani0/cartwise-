@@ -135,14 +135,20 @@ export default function Home() {
             viewport={{ once: true }}
             variants={containerVariants}
           >
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
               <div>
                 <h2 className="text-2xl md:text-3xl font-bold">Nearby Kirana Stores</h2>
                 <p className="text-muted-foreground mt-1">Fresh groceries from your local shops</p>
               </div>
-              <Link to="/shops" className="text-primary text-sm font-medium hover:underline hidden sm:block">
-                View All <ChevronRight className="h-4 w-4 inline" />
-              </Link>
+              <div className="flex items-center gap-4">
+                <Button variant="outline" className="text-sm font-medium border-orange-200 bg-orange-50/50 hover:bg-orange-100 text-orange-600 hidden sm:flex" onClick={() => navigate('/nearby')}>
+                  <Zap className="h-4 w-4 mr-2" />
+                  Use AI Location Search
+                </Button>
+                <Link to="/shops" className="text-primary text-sm font-medium hover:underline hidden sm:block">
+                  View All <ChevronRight className="h-4 w-4 inline" />
+                </Link>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -179,10 +185,16 @@ export default function Home() {
 
             {!loading && nearbyShops.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No shops found nearby. Try searching for shops.</p>
-                <Button variant="primary" className="mt-4" onClick={() => navigate('/shops')}>
-                  Browse All Shops
-                </Button>
+                <p className="text-muted-foreground">No shops found in the database. Let our AI find shops near you!</p>
+                <div className="flex justify-center gap-3 mt-4">
+                  <Button variant="primary" onClick={() => navigate('/nearby')}>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Find AI Nearby Shops
+                  </Button>
+                  <Button variant="outline" onClick={() => navigate('/shops')}>
+                    Browse All
+                  </Button>
+                </div>
               </div>
             )}
           </motion.div>

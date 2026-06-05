@@ -24,6 +24,21 @@ export const useAuthStore = create(
         const currentUser = get().user;
         set({ user: { ...currentUser, ...userData } });
       },
+
+      fetchProfile: async () => {
+        try {
+          const { authService } = await import('@/services/authService');
+          const response = await authService.getProfile();
+          set({ user: response.data, isAuthenticated: true });
+          return response.data;
+        } catch (error) {
+          console.error("Failed to fetch profile:", error);
+          if (error.response?.status === 401) {
+            get().logout();
+          }
+          throw error;
+        }
+      },
     }),
     {
       name: 'cartwise-auth',

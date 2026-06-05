@@ -5,6 +5,7 @@ import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ShopListing from '@/pages/ShopListing';
+import NearbyShops from '@/pages/NearbyShops';
 import ShopDetail from '@/pages/ShopDetail';
 import Cart from '@/pages/Cart';
 import Checkout from '@/pages/Checkout';
@@ -16,8 +17,20 @@ import Profile from '@/pages/Profile';
 import DeliveryDashboardPage from '@/pages/DeliveryDashboardPage';
 import AdminDashboardPage from '@/pages/AdminDashboardPage';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import { useEffect } from 'react';
+import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
 
 export default function App() {
+  const { isAuthenticated } = useAuthStore();
+  const { syncCart } = useCartStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      syncCart();
+    }
+  }, [isAuthenticated]);
+
   return (
     <ErrorBoundary>
       <Routes>
@@ -38,6 +51,7 @@ function MainRoutes() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/shops" element={<ShopListing />} />
+        <Route path="/nearby" element={<NearbyShops />} />
         <Route path="/shop/:id" element={<ShopDetail />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />

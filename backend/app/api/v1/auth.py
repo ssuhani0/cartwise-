@@ -82,6 +82,17 @@ class ResendOTPRequest(BaseModel):
     phone: str | None = None
 
 
+class CreateAddressRequest(BaseModel):
+    label: str = "Home"
+    full_address: str
+    area: str
+    city: str
+    pincode: str
+    lat: float | None = None
+    lng: float | None = None
+    is_default: bool = False
+
+
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(req: SignupRequest, request: Request, db: AsyncSession = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
@@ -94,14 +105,20 @@ async def signup(req: SignupRequest, request: Request, db: AsyncSession = Depend
 
     identifier = req.email or req.phone
 
+    from sqlalchemy import or_
+    conditions = []
     if req.email:
-        result = await db.execute(select(User).where(User.email == req.email))
-    else:
-        phone = format_phone(req.phone)
-        result = await db.execute(select(User).where(User.phone == phone))
-
-    existing = result.scalar_one_or_none()
+        conditions.append(User.email == req.email)
+    if req.phone:
+        conditions.append(User.phone == format_phone(req.phone))
+        
+    result = await db.execute(select(User).where(or_(*conditions)))
+    existing = result.scalars().first()
     if existing:
+        if req.email and existing.email == req.email:
+            raise HTTPException(status_code=409, detail="Email already registered")
+        if req.phone and existing.phone == format_phone(req.phone):
+            raise HTTPException(status_code=409, detail="Phone number already registered")
         raise HTTPException(status_code=409, detail="Account already exists")
 
     otp_code = generate_otp()
@@ -118,7 +135,7 @@ async def signup(req: SignupRequest, request: Request, db: AsyncSession = Depend
 
     await cache_set(f"signup_data:{identifier}", {
         "email": req.email,
-        "phone": req.phone,
+        "phone": format_phone(req.phone) if req.phone else None,
         "full_name": req.full_name,
         "password_hash": hash_password(req.password),
     }, ttl=600)
@@ -186,6 +203,17 @@ async def verify_otp(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
             "phone": user.phone,
             "full_name": user.full_name,
             "role": user.role.value,
+            "addresses": [
+                {
+                    "id": str(a.id),
+                    "label": a.label,
+                    "full_address": a.full_address,
+                    "area": a.area,
+                    "city": a.city,
+                    "pincode": a.pincode,
+                    "is_default": a.is_default,
+                } for a in user.addresses
+            ] if user.addresses else [],
         },
     )
 
@@ -250,6 +278,17 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             "full_name": user.full_name,
             "role": user.role.value,
             "avatar_url": user.avatar_url,
+            "addresses": [
+                {
+                    "id": str(a.id),
+                    "label": a.label,
+                    "full_address": a.full_address,
+                    "area": a.area,
+                    "city": a.city,
+                    "pincode": a.pincode,
+                    "is_default": a.is_default,
+                } for a in user.addresses
+            ] if user.addresses else [],
         },
     )
 
@@ -354,6 +393,17 @@ async def get_me(user: User = Depends(get_current_user)):
         "avatar_url": user.avatar_url,
         "location_area": user.location_area,
         "created_at": user.created_at.isoformat() if user.created_at else None,
+        "addresses": [
+            {
+                "id": str(a.id),
+                "label": a.label,
+                "full_address": a.full_address,
+                "area": a.area,
+                "city": a.city,
+                "pincode": a.pincode,
+                "is_default": a.is_default,
+            } for a in user.addresses
+        ] if user.addresses else [],
     }
 
 
@@ -367,3 +417,52 @@ async def update_me(req: UpdateProfileRequest, user: User = Depends(get_current_
         user.location_area = req.location_area
     await db.commit()
     return {"message": "Profile updated"}
+
+
+@router.post("/addresses")
+async def add_address(req: CreateAddressRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.address import Address
+    import sqlalchemy
+    
+    if req.is_default:
+        await db.execute(
+            sqlalchemy.update(Address)
+            .where(Address.user_id == user.id)
+            .values(is_default=False)
+        )
+    
+    addr = Address(
+        user_id=user.id,
+        label=req.label,
+        full_address=req.full_address,
+        area=req.area,
+        city=req.city,
+        pincode=req.pincode,
+        lat=req.lat,
+        lng=req.lng,
+        is_default=req.is_default
+    )
+    db.add(addr)
+    await db.commit()
+    await db.refresh(addr)
+    return {
+        "id": str(addr.id),
+        "label": addr.label,
+        "full_address": addr.full_address,
+        "area": addr.area,
+        "city": addr.city,
+        "pincode": addr.pincode,
+        "is_default": addr.is_default
+    }
+
+
+@router.delete("/addresses/{address_id}")
+async def delete_address(address_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.models.address import Address
+    result = await db.execute(select(Address).where(Address.id == address_id, Address.user_id == user.id))
+    addr = result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=404, detail="Address not found")
+    await db.delete(addr)
+    await db.commit()
+    return {"message": "Address deleted"}

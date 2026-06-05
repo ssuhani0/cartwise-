@@ -30,8 +30,10 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: Optional[str] = None
 
     GROK_API_KEY: Optional[str] = None
-
-    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    OLLAMA_URL: Optional[str] = None
+    OLLAMA_MODEL: Optional[str] = "llama3"
+    OLLAMA_VISION_MODEL: Optional[str] = "llava"
 
     FRONTEND_URL: str = "http://localhost:3000"
 

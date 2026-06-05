@@ -8,64 +8,52 @@ import OrderStatusTimeline from './OrderStatusTimeline';
 import { formatPrice, getTimeAgo } from '@/lib/utils';
 import { success, error } from '@/components/ui/Toast';
 
-const dummyOrders = [
-  {
-    id: '1',
-    orderId: 'CW001',
-    customer: { name: 'Rahul Sharma', phone: '+91 9876543210', address: '123, Gandhi Nagar, Chennai' },
-    items: [
-      { name: 'Basmati Rice', quantity: 2 },
-      { name: 'Toor Dal', quantity: 1 },
-      { name: 'Sugar', quantity: 1 },
-    ],
-    total: 450,
-    status: 'out_for_delivery',
-    paymentMethod: 'cod',
-    deliveryOtp: '1234',
-    createdAt: new Date().toISOString(),
-    distance: '2.3 km',
-  },
-  {
-    id: '2',
-    orderId: 'CW002',
-    customer: { name: 'Priya Patel', phone: '+91 8765432109', address: '456, OMR Road, Chennai' },
-    items: [
-      { name: 'Vegetables Pack', quantity: 1 },
-      { name: 'Milk', quantity: 2 },
-      { name: 'Bread', quantity: 1 },
-    ],
-    total: 320,
-    status: 'preparing',
-    paymentMethod: 'paid',
-    deliveryOtp: '5678',
-    createdAt: new Date().toISOString(),
-    distance: '1.5 km',
-  },
-];
+import { deliveryService } from '@/services/deliveryService';
 
 export default function DeliveryDashboard() {
-  const [orders, setOrders] = useState(dummyOrders);
+  const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const handleStatusUpdate = (orderId, newStatus) => {
-    setOrders(orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
-    success(`Order ${orderId} status updated to ${newStatus.replace(/_/g, ' ')}`);
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await deliveryService.getAssignedOrders();
+      setOrders(res.data.orders);
+    } catch (err) {
+      error("Failed to load delivery orders");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeliver = (orderId) => {
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      await deliveryService.updateOrderStatus(orderId, newStatus);
+      setOrders(orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
+      success(`Order ${orderId} status updated to ${newStatus.replace(/_/g, ' ')}`);
+    } catch (err) {
+      error(err.response?.data?.detail || "Failed to update status");
+    }
+  };
+
+  const handleDeliver = async (orderId) => {
     if (otp.length !== 4) {
       error('Please enter valid OTP');
       return;
     }
-    const order = orders.find((o) => o.id === orderId);
-    if (order && otp === order.deliveryOtp) {
+    try {
+      await deliveryService.verifyOtp(orderId, otp);
       handleStatusUpdate(orderId, 'delivered');
       setOtp('');
       setSelectedOrder(null);
       success('Delivery confirmed!');
-    } else {
-      error('Invalid OTP');
+    } catch (err) {
+      error(err.response?.data?.detail || 'Invalid OTP');
     }
   };
 
@@ -126,20 +114,20 @@ export default function DeliveryDashboard() {
                 </div>
 
                 <div className="space-y-1 mb-3">
-                  <p className="text-sm font-medium">{order.customer.name}</p>
+                  <p className="text-sm font-medium">{order.customerName}</p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {order.customer.address}
+                    <MapPin className="h-3 w-3" /> {order.deliveryAddress}
                   </p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Phone className="h-3 w-3" /> {order.customer.phone}
+                    <Phone className="h-3 w-3" /> {order.customerPhone}
                   </p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Navigation className="h-3 w-3" /> {order.distance}
+                    <Navigation className="h-3 w-3" /> {order.shopName}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t">
-                  <span className="font-bold text-primary">{formatPrice(order.total)}</span>
+                  <span className="font-bold text-primary">{formatPrice(order.totalAmount)}</span>
                   <div className="flex gap-2">
                     {order.status === 'preparing' && (
                       <Button

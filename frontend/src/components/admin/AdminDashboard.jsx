@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, Users, ShoppingBag, DollarSign, Package, Store,
@@ -11,34 +11,58 @@ import {
 import Card from '@/components/ui/Card';
 import { formatPrice } from '@/lib/utils';
 
-const stats = [
-  { label: 'Total Revenue', value: 125000, icon: DollarSign, change: 12.5, trend: 'up', color: 'text-green-500' },
-  { label: 'Total Orders', value: 1450, icon: Package, change: 8.2, trend: 'up', color: 'text-blue-500' },
-  { label: 'Active Users', value: 890, icon: Users, change: -3.1, trend: 'down', color: 'text-orange-500' },
-  { label: 'Active Shops', value: 48, icon: Store, change: 4.7, trend: 'up', color: 'text-purple-500' },
-];
 
-const dailyOrders = [
-  { day: 'Mon', orders: 45, revenue: 12500 },
-  { day: 'Tue', orders: 52, revenue: 14800 },
-  { day: 'Wed', orders: 38, revenue: 10200 },
-  { day: 'Thu', orders: 65, revenue: 18900 },
-  { day: 'Fri', orders: 55, revenue: 15600 },
-  { day: 'Sat', orders: 78, revenue: 22300 },
-  { day: 'Sun', orders: 72, revenue: 20500 },
-];
-
-const popularItems = [
-  { name: 'Basmati Rice', value: 35 },
-  { name: 'Toor Dal', value: 25 },
-  { name: 'Sugar', value: 20 },
-  { name: 'Cooking Oil', value: 15 },
-  { name: 'Tea', value: 10 },
-];
+import { adminService } from '@/services/adminService';
+import { error } from '@/components/ui/Toast';
 
 const COLORS = ['#ea580c', '#16a34a', '#eab308', '#3b82f6', '#8b5cf6'];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState([
+    { label: 'Total Revenue', value: 0, icon: DollarSign, change: 0, trend: 'up', color: 'text-green-500' },
+    { label: 'Total Orders', value: 0, icon: Package, change: 0, trend: 'up', color: 'text-blue-500' },
+    { label: 'Active Users', value: 0, icon: Users, change: 0, trend: 'up', color: 'text-orange-500' },
+    { label: 'Active Shops', value: 0, icon: Store, change: 0, trend: 'up', color: 'text-purple-500' },
+  ]);
+  const [dailyOrdersData, setDailyOrdersData] = useState([]);
+  const [popularItemsData, setPopularItemsData] = useState([]);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [revenueRes, dailyRes, popularRes, usersRes, shopsRes] = await Promise.all([
+          adminService.getRevenue({ period: 'month' }),
+          adminService.getDailyOrders({ days: 7 }),
+          adminService.getPopularItems({ limit: 5 }),
+          adminService.getUsers({ pageSize: 1 }),
+          adminService.getShops({ pageSize: 1 })
+        ]);
+
+        setStats([
+          { label: 'Total Revenue', value: revenueRes.data.revenue, icon: DollarSign, change: 0, trend: 'up', color: 'text-green-500' },
+          { label: 'Total Orders', value: revenueRes.data.orderCount, icon: Package, change: 0, trend: 'up', color: 'text-blue-500' },
+          { label: 'Active Users', value: usersRes.data.total, icon: Users, change: 0, trend: 'up', color: 'text-orange-500' },
+          { label: 'Active Shops', value: shopsRes.data.total, icon: Store, change: 0, trend: 'up', color: 'text-purple-500' },
+        ]);
+
+        const formattedDaily = dailyRes.data.dailyOrders.map(d => {
+          const date = new Date(d.date);
+          return { day: date.toLocaleDateString('en-US', { weekday: 'short' }), orders: d.count, revenue: d.revenue };
+        });
+        setDailyOrdersData(formattedDaily);
+
+        const formattedPopular = popularRes.data.popularItems.map(p => ({
+          name: p.name, value: p.totalSold
+        }));
+        setPopularItemsData(formattedPopular);
+
+      } catch (err) {
+        error("Failed to load dashboard data");
+      }
+    };
+    fetchData();
+  }, []);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
@@ -81,7 +105,7 @@ export default function AdminDashboard() {
         <Card className="p-5">
           <h3 className="font-semibold mb-4">Daily Orders & Revenue</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={dailyOrders}>
+            <BarChart data={dailyOrdersData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" />
               <YAxis stroke="hsl(var(--muted-foreground))" />
@@ -104,7 +128,7 @@ export default function AdminDashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={popularItems}
+                data={popularItemsData}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -113,7 +137,7 @@ export default function AdminDashboard() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {popularItems.map((_, index) => (
+                {popularItemsData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -132,7 +156,7 @@ export default function AdminDashboard() {
       <Card className="p-5">
         <h3 className="font-semibold mb-4">Revenue Trend</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={dailyOrders}>
+          <LineChart data={dailyOrdersData}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" />
             <YAxis stroke="hsl(var(--muted-foreground))" />

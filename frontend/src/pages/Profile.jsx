@@ -14,6 +14,7 @@ import {
   Plus,
   Edit,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
@@ -25,20 +26,33 @@ import { success, error } from '@/components/ui/Toast';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout, updateUser } = useAuthStore();
+  const { user, isAuthenticated, logout, updateUser, fetchProfile } = useAuthStore();
   const { theme, toggleTheme } = useUiStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState({ label: 'Home', fullAddress: '', area: '', city: '', pincode: '' });
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
+    } else {
+      fetchProfile().finally(() => setLoadingProfile(false));
     }
   }, [isAuthenticated]);
 
-  if (!user) return null;
+  if (!user || loadingProfile) return (
+    <div className="container flex items-center justify-center min-h-[50vh]">
+      <div className="animate-pulse flex flex-col items-center gap-4">
+        <div className="w-16 h-16 bg-muted rounded-full"></div>
+        <div className="w-32 h-4 bg-muted rounded"></div>
+      </div>
+    </div>
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -57,6 +71,33 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleAddAddress = async (e) => {
+    e.preventDefault();
+    setSavingAddress(true);
+    try {
+      await authService.addAddress(newAddress);
+      await fetchProfile();
+      setShowAddressModal(false);
+      setNewAddress({ label: 'Home', fullAddress: '', area: '', city: '', pincode: '' });
+      success('Address added!');
+    } catch (err) {
+      error(err.message || 'Failed to add address');
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id) => {
+    if (!window.confirm('Delete this address?')) return;
+    try {
+      await authService.deleteAddress(id);
+      await fetchProfile();
+      success('Address deleted');
+    } catch (err) {
+      error('Failed to delete address');
+    }
   };
 
   return (
@@ -123,7 +164,7 @@ export default function Profile() {
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Saved Addresses</h3>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={() => setShowAddressModal(true)}>
                   <Plus className="h-4 w-4 mr-1" /> Add
                 </Button>
               </div>
@@ -139,7 +180,7 @@ export default function Profile() {
                       </div>
                       <div className="flex gap-1">
                         <button className="p-1 hover:bg-muted rounded"><Edit className="h-3 w-3" /></button>
-                        <button className="p-1 hover:bg-muted rounded text-destructive"><Trash2 className="h-3 w-3" /></button>
+                        <button className="p-1 hover:bg-muted rounded text-destructive" onClick={() => handleDeleteAddress(addr.id)}><Trash2 className="h-3 w-3" /></button>
                       </div>
                     </div>
                   ))}
@@ -190,6 +231,65 @@ export default function Profile() {
           </div>
         </div>
       </motion.div>
+
+      {/* Address Modal */}
+      {showAddressModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-card rounded-2xl shadow-xl border p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Add Address</h2>
+              <button onClick={() => setShowAddressModal(false)} className="p-2 hover:bg-muted rounded-full">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddAddress} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Label (e.g. Home, Work)"
+                  value={newAddress.label}
+                  onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                  required
+                />
+                <Input
+                  label="City"
+                  value={newAddress.city}
+                  onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                  required
+                />
+              </div>
+              <Input
+                label="Full Address (Flat, Building, Street)"
+                value={newAddress.fullAddress}
+                onChange={(e) => setNewAddress({ ...newAddress, fullAddress: e.target.value })}
+                required
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Area/Locality"
+                  value={newAddress.area}
+                  onChange={(e) => setNewAddress({ ...newAddress, area: e.target.value })}
+                  required
+                />
+                <Input
+                  label="Pincode"
+                  value={newAddress.pincode}
+                  onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="pt-2">
+                <Button type="submit" variant="primary" className="w-full" loading={savingAddress}>
+                  Save Address
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,19 +6,34 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 
-const users = [
-  { id: '1', name: 'Rahul Sharma', email: 'rahul@email.com', role: 'user', status: 'active', orders: 12, joined: '2024-01-15' },
-  { id: '2', name: 'Priya Patel', email: 'priya@email.com', role: 'delivery', status: 'active', orders: 0, joined: '2024-02-20' },
-  { id: '3', name: 'Amit Singh', email: 'amit@email.com', role: 'admin', status: 'active', orders: 5, joined: '2023-12-01' },
-  { id: '4', name: 'Neha Gupta', email: 'neha@email.com', role: 'user', status: 'blocked', orders: 3, joined: '2024-03-10' },
-];
+import { useEffect } from 'react';
+import { adminService } from '@/services/adminService';
+import { error } from '@/components/ui/Toast';
 
 export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
 
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await adminService.getUsers({ pageSize: 50 });
+      setUsers(res.data.users);
+    } catch (err) {
+      error("Failed to fetch users");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filtered = users.filter((u) => {
-    const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = u.fullName.toLowerCase().includes(search.toLowerCase()) || (u.email && u.email.toLowerCase().includes(search.toLowerCase())) || (u.phone && u.phone.includes(search));
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -84,19 +99,19 @@ export default function UserManagement() {
                         {user.role === 'admin' ? <Shield className="h-4 w-4 text-primary" /> : <UserIcon className="h-4 w-4 text-primary" />}
                       </div>
                       <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        <p className="font-medium">{user.fullName}</p>
+                        <p className="text-xs text-muted-foreground">{user.email || user.phone}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 capitalize">{user.role}</td>
+                  <td className="p-4 capitalize">{user.role.replace('_', ' ')}</td>
                   <td className="p-4">
-                    <Badge variant={user.status === 'active' ? 'success' : 'danger'}>
-                      {user.status}
+                    <Badge variant={user.isActive ? 'success' : 'danger'}>
+                      {user.isActive ? 'active' : 'blocked'}
                     </Badge>
                   </td>
-                  <td className="p-4">{user.orders}</td>
-                  <td className="p-4 text-muted-foreground">{user.joined}</td>
+                  <td className="p-4">-</td>
+                  <td className="p-4 text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button className="p-2 rounded-lg hover:bg-muted transition-colors"><Edit2 className="h-4 w-4" /></button>

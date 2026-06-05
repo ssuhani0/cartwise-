@@ -151,7 +151,6 @@ RAZORPAY_KEY_ID=your-razorpay-key
 RAZORPAY_KEY_SECRET=your-razorpay-secret
 OPENAI_API_KEY=your-openai-key
 GEMINI_API_KEY=your-gemini-key
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
 FRONTEND_URL=http://localhost:5173
 ENVIRONMENT=development
 ```

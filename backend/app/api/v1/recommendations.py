@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from pydantic import BaseModel
+from typing import Optional
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.product import Product
 from app.models.order import Order, OrderItem
@@ -25,33 +26,42 @@ class RecipeRequest(BaseModel):
 
 @router.get("")
 async def get_personalized_recommendations(
-    user: User = Depends(get_current_user),
+    query: Optional[str] = Query(None),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    order_results = await db.execute(
-        select(Order).where(Order.user_id == user.id).order_by(desc(Order.created_at)).limit(10)
-    )
-    orders = order_results.scalars().all()
-
     user_history = []
-    for order in orders:
-        for item in order.items:
-            user_history.append({
-                "product_name": item.product.name if item.product else "Unknown",
-                "quantity": item.quantity,
-                "price": item.unit_price,
-            })
+
+    if user:
+        order_results = await db.execute(
+            select(Order).where(Order.user_id == user.id).order_by(desc(Order.created_at)).limit(10)
+        )
+        orders = order_results.scalars().all()
+        for order in orders:
+            for item in order.items:
+                user_history.append({
+                    "product_name": item.product.name if item.product else "Unknown",
+                    "quantity": item.quantity,
+                    "price": item.unit_price,
+                })
 
     product_result = await db.execute(select(Product).where(Product.is_available == True).limit(100))
     products = product_result.scalars().all()
-    available = [
-        {"id": str(p.id), "name": p.name, "price": p.price, "category": p.category.name if p.category else None}
-        for p in products
-    ]
+    available = []
+    for p in products:
+        try:
+            cat_name = p.category.name if p.category else None
+        except Exception:
+            cat_name = None
+        available.append({"id": str(p.id), "name": p.name, "price": p.price, "category": cat_name})
+
+    # If query provided, use it as context for LLM
+    if query:
+        user_history.append({"query": query})
 
     recommendations = await get_recommendations(user_history, available)
 
-    return {"recommendations": recommendations, "based_on": "purchase_history"}
+    return {"recommendations": recommendations, "based_on": "purchase_history" if user else "general"}
 
 
 @router.get("/trending")
@@ -80,11 +90,11 @@ async def get_trending(db: AsyncSession = Depends(get_db)):
 @router.get("/budget-optimization")
 async def get_budget_options(
     budget: float = Query(..., ge=100),
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     cart_items = []
-    if user.cart:
+    if user and user.cart:
         for item in user.cart.items:
             cart_items.append({
                 "name": item.product.name if item.product else "Unknown",
@@ -110,7 +120,7 @@ async def get_budget_options(
 @router.post("/recipe")
 async def get_recipe_recommendations(
     req: RecipeRequest,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
 ):
     recipe_data = await recommend_based_on_recipe(req.recipe_name)
 
@@ -183,23 +193,25 @@ async def add_recipe_to_cart(
 
 @router.get("/monthly-prediction")
 async def get_monthly_prediction(
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    order_results = await db.execute(
-        select(Order).where(Order.user_id == user.id).order_by(desc(Order.created_at)).limit(20)
-    )
-    orders = order_results.scalars().all()
-
     user_history = []
-    for order in orders:
-        for item in order.items:
-            user_history.append({
-                "product_name": item.product.name if item.product else "Unknown",
-                "quantity": item.quantity,
-                "price": item.unit_price,
-                "date": order.created_at.isoformat() if order.created_at else None,
-            })
+    orders = []
+
+    if user:
+        order_results = await db.execute(
+            select(Order).where(Order.user_id == user.id).order_by(desc(Order.created_at)).limit(20)
+        )
+        orders = order_results.scalars().all()
+        for order in orders:
+            for item in order.items:
+                user_history.append({
+                    "product_name": item.product.name if item.product else "Unknown",
+                    "quantity": item.quantity,
+                    "price": item.unit_price,
+                    "date": order.created_at.isoformat() if order.created_at else None,
+                })
 
     prediction = await predict_monthly_groceries(user_history)
 

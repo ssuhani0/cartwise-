@@ -18,6 +18,31 @@ const suggestions = [
   'Need cooking oil?',
 ];
 
+// Generate a stable fake product ID from item name
+function fakeProductId(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return `ocr-${Math.abs(hash)}`;
+}
+
+// Estimate a realistic price range for common Indian grocery items
+function estimatePrice(name) {
+  const lower = name.toLowerCase();
+  const priceMap = {
+    milk: 60, bread: 45, butter: 55, egg: 90, paneer: 80,
+    rice: 120, atta: 65, dal: 110, oil: 150, sugar: 45,
+    salt: 20, tea: 95, coffee: 180, biscuit: 40, maggi: 35,
+    potato: 40, onion: 50, tomato: 60, banana: 60, apple: 150,
+  };
+  for (const [key, price] of Object.entries(priceMap)) {
+    if (lower.includes(key)) return price;
+  }
+  return Math.floor(Math.random() * 80) + 30; // fallback: 30–110 range
+}
+
 export default function OcrPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
@@ -39,7 +64,7 @@ export default function OcrPage() {
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('image', image);
+      formData.append('file', image);
       const response = await ocrService.extractItems(formData);
       setExtractedItems(response.data.items || []);
       showSuccess('Items extracted successfully!');
@@ -60,19 +85,43 @@ export default function OcrPage() {
     setExtractedItems(extractedItems.filter((_, i) => i !== index));
   };
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = () => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
 
-    try {
-      await ocrService.addToCart(extractedItems);
-      showSuccess('Items added to cart!');
-      navigate('/cart');
-    } catch (err) {
-      showError(err.message || 'Failed to add to cart');
+    if (extractedItems.length === 0) {
+      showError('No items to add.');
+      return;
     }
+
+    // Add each extracted item directly into the frontend cart store
+    // Uses a virtual "OCR Store" shopId so items can be grouped
+    const OCR_SHOP_ID = 'ocr-store';
+    let addedCount = 0;
+
+    for (const item of extractedItems) {
+      const name = (item.name || 'Unknown Item').trim();
+      const quantity = Number(item.quantity) || 1;
+      const price = estimatePrice(name);
+
+      const product = {
+        id: fakeProductId(name),
+        name: name,
+        price: price,
+        discountedPrice: Math.max(price - 10, price * 0.9),
+        unit: item.unit || 'pack',
+        shopId: OCR_SHOP_ID,
+        imageUrl: null,
+      };
+
+      addItem(product, quantity);
+      addedCount++;
+    }
+
+    showSuccess(`✅ Added ${addedCount} items to your cart!`);
+    navigate('/cart');
   };
 
   return (
@@ -156,7 +205,7 @@ export default function OcrPage() {
                   className="w-full"
                   onClick={handleAddToCart}
                 >
-                  <ShoppingBag className="h-5 w-5 mr-2" /> Add to Cart
+                  <ShoppingBag className="h-5 w-5 mr-2" /> Add All to Cart
                 </Button>
               </motion.div>
             )}

@@ -4,6 +4,7 @@ from app.core.config import settings
 
 async def send_brevo_email(to_email: str, subject: str, html_content: str) -> bool:
     if not settings.BREVO_API_KEY:
+        print("\n[DEBUG] BREVO_API_KEY is MISSING! Skipping Brevo API call.\n", flush=True)
         return False
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
@@ -18,11 +19,16 @@ async def send_brevo_email(to_email: str, subject: str, html_content: str) -> bo
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, json=payload, headers=headers)
+        if not resp.is_success:
+            print(f"\n[Brevo Error] Failed to send email to {to_email}. Status: {resp.status_code}, Body: {resp.text}\n", flush=True)
+        else:
+            print(f"\n[Brevo Success] Email accepted by Brevo! Status: {resp.status_code}, Body: {resp.text}\n", flush=True)
         return resp.is_success
 
 
 async def send_otp_email(recipient: str, otp_code: str) -> bool:
     subject = "Your CartWise OTP Code"
+    print(f"\n--- MOCK EMAIL: OTP for {recipient} is {otp_code} ---\n", flush=True)
     html = f"""
     <html>
     <body style="font-family: Arial, sans-serif; padding: 20px;">

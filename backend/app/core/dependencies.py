@@ -10,6 +10,7 @@ from app.models.user import User
 import redis.asyncio as aioredis
 
 bearer_scheme = HTTPBearer(auto_error=False)
+optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -57,6 +58,26 @@ def role_required(allowed_roles: List[str]):
             )
         return current_user
     return role_checker
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """Returns current user or None if not authenticated (no 401 raised)."""
+    if credentials is None:
+        return None
+    payload = verify_token(credentials.credentials, expected_type="access")
+    if payload is None:
+        return None
+    user_id = payload.get("sub")
+    if user_id is None:
+        return None
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        return None
+    return user
 
 
 async def get_redis_client() -> aioredis.Redis:

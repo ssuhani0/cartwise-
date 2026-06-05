@@ -10,4 +10,6 @@ export const authService = {
   resetPassword: (data) => api.post('/v1/auth/reset-password', data),
   getProfile: () => api.get('/v1/auth/me'),
   updateProfile: (data) => api.put('/v1/auth/me', data),
+  addAddress: (data) => api.post('/v1/auth/addresses', data),
+  deleteAddress: (id) => api.delete(`/v1/auth/addresses/${id}`),
 };

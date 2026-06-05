@@ -40,6 +40,17 @@ async def get_nearby_shops(
     return {"shops": result, "total": len(result)}
 
 
+@router.get("/ai-nearby")
+async def get_nearby_shops_ai(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    category: str = Query("kirana"),
+):
+    from app.ai.llm import find_nearby_shops_by_category
+    shops = await find_nearby_shops_by_category(lat, lng, category)
+    return {"shops": shops, "total": len(shops)}
+
+
 @router.get("")
 async def list_shops(
     area: str | None = None,
@@ -52,10 +63,13 @@ async def list_shops(
 ):
     query = select(Shop)
 
+    from sqlalchemy.dialects.postgresql import JSONB
+    
     if area:
         query = query.where(Shop.area.ilike(f"%{area}%"))
     if category:
-        query = query.where(Shop.categories.contains([category]))
+        from sqlalchemy import String
+        query = query.where(func.cast(Shop.categories, String).ilike(f'%"{category}"%'))
     if min_rating:
         query = query.where(Shop.rating >= min_rating)
     if open_only:

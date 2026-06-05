@@ -43,8 +43,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    if (config.data && config.headers['Content-Type'] !== 'multipart/form-data') {
-      config.data = toSnakeCase(config.data);
+    if (config.data) {
+      if (config.data instanceof FormData || (config.data.constructor && config.data.constructor.name === 'FormData')) {
+        delete config.headers['Content-Type'];
+        delete config.headers['content-type'];
+      } else {
+        config.data = toSnakeCase(config.data);
+      }
+    }
+    if (config.params) {
+      config.params = toSnakeCase(config.params);
     }
     return config;
   },

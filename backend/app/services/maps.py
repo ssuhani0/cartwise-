@@ -1,6 +1,6 @@
 import math
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.shop import Shop
@@ -36,7 +36,8 @@ async def find_nearby_shops(
         query = query.where(Shop.area.ilike(f"%{area}%"))
 
     if category:
-        query = query.where(Shop.categories.contains([category]))
+        from sqlalchemy import String
+        query = query.where(func.cast(Shop.categories, String).ilike(f'%"{category}"%'))
 
     result = await db.execute(query)
     shops = result.scalars().all()
